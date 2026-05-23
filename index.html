@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise SCADA | Holographic HUD V15 (Ultimate)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js untuk 3D Hologram -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Chart.js untuk Grafik -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tone.js untuk Audio Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Socket.io untuk Real-time Web <-> Telegram -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- jsPDF untuk Export ke PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --bg-dark: #020617; 
+            --panel-bg: rgba(15, 23, 42, 0.7); 
+            --hud-color: #00f3ff; 
+            --hud-red: #ff003c; 
+            --hud-warn: #ffae00; 
+        }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: var(--bg-dark); 
+            color: #e2e8f0; 
+            overflow: hidden; 
+            margin: 0; 
+            user-select: none;
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        .font-mono-data { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Panel Style */
+        .scada-panel { 
+            background: var(--panel-bg); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid rgba(0, 243, 255, 0.2); 
+            box-shadow: inset 0 0 20px rgba(0, 243, 255, 0.05), 0 0 10px rgba(0,0,0,0.5); 
+            display: flex; flex-direction: column; position: relative;
+        }
+        .scada-panel::before, .scada-panel::after {
+            content: ''; position: absolute; width: 10px; height: 10px; border: 2px solid var(--hud-color); transition: 0.3s;
+        }
+        .scada-panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .scada-panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+        
+        .scada-header { 
+            background: rgba(0, 243, 255, 0.1); 
+            border-bottom: 1px solid rgba(0, 243, 255, 0.3); 
+            padding: 4px 8px; font-size: 12px; font-weight: 700; 
+            letter-spacing: 2px; color: var(--hud-color); text-transform: uppercase; 
+            flex-shrink: 0; display: flex; justify-content: space-between;
+        }
+        
+        .scanline {
+            position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+            background: rgba(0, 243, 255, 0.4);
+            box-shadow: 0 0 10px var(--hud-color);
+            animation: scan 3s linear infinite; pointer-events: none; z-index: 20;
+        }
+        @keyframes scan { 0% { top: -10%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 110%; opacity: 0; } }
+
+        /* Tombol */
+        .hud-btn { background: rgba(0, 243, 255, 0.1); border: 1px solid var(--hud-color); color: var(--hud-color); padding: 4px 8px; font-weight: bold; cursor: pointer; transition: 0.2s; letter-spacing: 1px; font-size: 10px;}
+        .hud-btn:hover { background: var(--hud-color); color: #000; box-shadow: 0 0 15px var(--hud-color); }
+        .estop-btn { background: rgba(255, 0, 60, 0.1); border: 1px solid var(--hud-red); color: var(--hud-red); padding: 4px 8px; font-weight: bold; cursor: pointer; transition: 0.2s; letter-spacing: 1px; font-size: 10px;}
+        .estop-btn:hover { background: var(--hud-red); color: #fff; box-shadow: 0 0 20px var(--hud-red); }
+        .warn-btn { background: rgba(255, 174, 0, 0.1); border: 1px solid var(--hud-warn); color: var(--hud-warn); padding: 4px 8px; font-weight: bold; cursor: pointer; transition: 0.2s; letter-spacing: 1px; font-size: 10px;}
+        .warn-btn:hover { background: var(--hud-warn); color: #000; box-shadow: 0 0 20px var(--hud-warn); }
+        
+        /* Boot Screen Pro Upgrade */
+        #boot-screen { 
+            position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.8s ease-in-out;
+            background: radial-gradient(circle at center, #0a1622 0%, #020617 100%);
+            background-image: 
+                radial-gradient(circle at center, rgba(0,243,255,0.1) 0%, transparent 60%),
+                linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+        }
+        .boot-panel {
+            background: rgba(10, 22, 34, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 3rem;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.1), inset 0 0 20px rgba(0, 243, 255, 0.05);
+            display: flex; flex-direction: column; align-items: center;
+            position: relative; overflow: hidden;
+        }
+        
+        #lockdown-screen { position: fixed; inset: 0; background: rgba(20, 0, 0, 0.95); z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.8s ease-in-out; }
+        
+        #boot-terminal { position: absolute; top: 20px; left: 20px; width: 300px; height: 90vh; color: rgba(0, 243, 255, 0.6); font-family: 'JetBrains Mono', monospace; font-size: 10px; overflow: hidden; pointer-events: none; }
+
+        .fingerprint-container { position: relative; width: 140px; height: 140px; display: flex; justify-content: center; align-items: center; margin: 2rem 0; cursor: pointer;}
+        .fingerprint-btn { position: absolute; width: 100px; height: 100px; border-radius: 50%; border: 1px dashed var(--hud-color); display: flex; justify-content: center; align-items: center; transition: 0.3s; z-index: 10; background: rgba(0,0,0,0.5); }
+        .fingerprint-container:hover .fingerprint-btn { background: rgba(0, 243, 255, 0.1); border-style: solid; box-shadow: 0 0 40px rgba(0, 243, 255, 0.5); transform: scale(1.1); }
+        .scanner-ring { position: absolute; width: 130px; height: 130px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--hud-color); border-bottom-color: rgba(0, 243, 255, 0.3); animation: spin 2s linear infinite; pointer-events: none;}
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Tema dan Input */
+        .ai-input { background: transparent; border: none; outline: none; color: var(--hud-color); width: 100%; border-bottom: 1px solid rgba(0,243,255,0.3); padding: 4px; }
+        .hud-text { color: var(--hud-color); }
+        .hud-bg { background-color: var(--hud-color); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.3); }
+
+        .cctv-overlay { background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.5) 2px, rgba(0,0,0,0.5) 4px); pointer-events: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col p-2 gap-2 text-[11px]">
+
+    <!-- BOOT SCREEN (PRO UPGRADE) -->
+    <div id="boot-screen">
+        <div id="boot-terminal"></div>
+        <div class="boot-panel">
+            <h1 id="boot-title" class="text-6xl font-bold tracking-[15px] hud-text mb-2 drop-shadow-[0_0_15px_rgba(0,243,255,0.8)] animate-pulse transition-all">NEXUS//HUD</h1>
+            <p id="boot-desc" class="text-cyan-600 font-mono-data text-xs tracking-[5px] mb-4 text-center">SECURE ENTERPRISE ENCLAVE<br>SYSTEM LOCKED</p>
+            
+            <div class="fingerprint-container" onclick="startSystem()" id="boot-btn-container">
+                <div class="scanner-ring"></div>
+                <div class="fingerprint-btn">
+                    <div class="absolute w-full h-[2px] hud-bg shadow-[0_0_10px_var(--hud-color)] opacity-50" style="animation: scan 2s infinite linear;"></div>
+                    <svg class="w-14 h-14 hud-text" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"/></svg>
+                </div>
+            </div>
+            <p id="boot-hint" class="hud-text mt-4 text-[10px] font-mono-data tracking-[0.4em] opacity-80 animate-pulse">AWAITING BIOMETRICS</p>
+        </div>
+    </div>
+
+    <!-- FITUR 22: LOCKDOWN SCREEN -->
+    <div id="lockdown-screen">
+        <h1 class="text-6xl font-bold tracking-[15px] text-[#ff003c] mb-2 animate-pulse drop-shadow-[0_0_20px_#ff003c]">SYSTEM LOCKDOWN</h1>
+        <p class="text-[#ff003c] font-mono-data tracking-[5px] mb-8">OTORISASI DIPERLUKAN UNTUK MEMBUKA SISTEM</p>
+        <input type="password" id="pinLockdown" class="bg-black/50 border border-[#ff003c] text-[#ff003c] text-center text-2xl p-2 w-64 outline-none mb-4" placeholder="ENTER PIN (1234)">
+        <button onclick="unlockSystem()" class="estop-btn text-lg px-8 py-2">UNLOCK</button>
+    </div>
+
+    <!-- GLOBAL HEADER -->
+    <header class="flex justify-between items-center px-2 py-1 border-b border-cyan-900/50 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="hud-text font-bold text-xl tracking-widest drop-shadow-[0_0_5px_var(--hud-color)]">TURBINE_V15</div>
+            <div class="text-[8px] font-mono-data text-cyan-700 bg-cyan-900/30 px-2 py-0.5 rounded border border-cyan-800" id="connStatus">MENUNGGU WEBSOCKET...</div>
+            <div class="text-[8px] font-mono-data text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded border border-emerald-800" id="netPing">PING: --ms</div>
+        </div>
+        <div class="flex gap-2 font-mono-data text-[9px] items-center">
+            <button onclick="runDiagnostics()" class="hud-btn bg-cyan-900/40">⚙️ DIAG</button>
+            <button onclick="toggleXRay()" id="btnXray" class="hud-btn opacity-50">🦴 X-RAY</button>
+            <button onclick="toggleFullscreen()" class="hud-btn">🗖 FS</button>
+            <button onclick="toggleVoice()" id="btnVoice" class="hud-btn opacity-50">🔈 VOICE</button>
+            <button onclick="toggleAutoPilot()" id="btnAutoPilot" class="hud-btn opacity-50">🤖 AUTO</button>
+            <button onclick="toggleTheme()" class="hud-btn">🎨 THEME</button>
+            <button onclick="triggerLockdown()" class="estop-btn">🚨 LOCKDOWN</button>
+            <div class="text-right ml-2 border-l border-cyan-900/50 pl-2">
+                <div class="text-cyan-700 leading-none">SYS_TIME</div>
+                <div id="clock" class="text-cyan-300 text-sm font-bold">00:00:00</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex gap-2 min-h-0 overflow-hidden opacity-0 transition-opacity duration-1000" id="mainApp">
+        
+        <!-- KOLOM KIRI (25%) -->
+        <div class="w-[25%] flex flex-col gap-2 min-h-0 shrink-0">
+            <!-- FITUR 18: SYSTEM LOAD MONITOR -->
+            <div class="scada-panel shrink-0 h-[15%]">
+                <div class="scada-header"><span>SYSTEM LOAD</span></div>
+                <div class="p-2 flex flex-col justify-center gap-2 flex-1">
+                    <div>
+                        <div class="flex justify-between text-[9px] font-bold text-cyan-600 mb-0.5"><span>CPU CORE</span> <span id="uiCpu" class="text-cyan-300 font-mono-data">14%</span></div>
+                        <div class="w-full bg-slate-900 h-1"><div id="cpuBar" class="hud-bg h-full w-[14%] shadow-[0_0_5px_var(--hud-color)]"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[9px] font-bold text-cyan-600 mb-0.5"><span>RAM ALLOC</span> <span id="uiRam" class="text-cyan-300 font-mono-data">4.2 GB</span></div>
+                        <div class="w-full bg-slate-900 h-1"><div id="ramBar" class="hud-bg h-full w-[40%] shadow-[0_0_5px_var(--hud-color)]"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FITUR 19: ENVIRONMENT SENSOR -->
+            <div class="scada-panel shrink-0 h-[12%]">
+                <div class="scada-header"><span>EXT. SENSOR</span></div>
+                <div class="p-2 grid grid-cols-2 gap-1 flex-1 items-center">
+                    <div class="text-[9px] text-cyan-600">SUHU LUAR: <span id="extTemp" class="text-emerald-400 font-bold block text-sm">32°C</span></div>
+                    <div class="text-[9px] text-cyan-600">KELEMBABAN: <span id="extHum" class="text-emerald-400 font-bold block text-sm">78%</span></div>
+                </div>
+            </div>
+
+            <!-- LIVE TELEMETRY -->
+            <div class="scada-panel shrink-0 h-[28%]">
+                <div class="scada-header"><span>TELEMETRI</span></div>
+                <div class="p-2 flex flex-col justify-center gap-3 flex-1">
+                    <div>
+                        <div class="flex justify-between text-[9px] font-bold text-cyan-600 mb-1"><span>SUHU INTI</span> <span id="uiTemp" class="text-cyan-300 font-mono-data text-base">85.2°C</span></div>
+                        <div class="w-full bg-slate-900 h-1.5"><div id="tempBar" class="hud-bg h-full w-[70%] transition-all shadow-[0_0_8px_var(--hud-color)]"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[9px] font-bold text-cyan-600 mb-1"><span>RPM TURBIN</span> <span id="uiRpm" class="text-cyan-300 font-mono-data text-base">2450</span></div>
+                        <div class="w-full bg-slate-900 h-1.5"><div id="rpmBar" class="hud-bg h-full w-[60%] transition-all shadow-[0_0_8px_var(--hud-color)]"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[9px] font-bold text-cyan-600 mb-1"><span>EFISIENSI OEE</span> <span id="uiOee" class="text-emerald-400 font-mono-data text-base">94.5%</span></div>
+                        <div class="w-full bg-slate-900 h-1.5"><div id="oeeBar" class="bg-emerald-400 h-full w-[94.5%] transition-all shadow-[0_0_8px_#34d399]"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INTERACTIVE AI TERMINAL -->
+            <div class="scada-panel flex-1 min-h-0">
+                <div class="scada-header"><span>NEXUS AI</span><span class="text-[8px] text-emerald-400 animate-pulse">✨ OR-LLM</span></div>
+                <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-1 font-mono-data text-[9px]" id="aiLog">
+                    <div class="text-cyan-700">Terhubung ke API... OK</div>
+                    <div class="hud-text">> SISTEM SIAP. KETIK PERTANYAAN...</div>
+                </div>
+                <div class="p-1 border-t border-cyan-900/50 flex shrink-0">
+                    <span class="text-cyan-600 mr-1">></span>
+                    <input type="text" id="aiInput" class="ai-input font-mono-data text-[10px]" placeholder="Ketik AI..." autocomplete="off">
+                </div>
+            </div>
+        </div>
+
+        <!-- KOLOM TENGAH (50%) -->
+        <div class="flex-1 flex flex-col min-h-0 relative shrink-0">
+            <div class="scada-panel flex-1 bg-transparent border-cyan-500/30 overflow-hidden" id="canvas-container">
+                <div class="scanline"></div> 
+                <div class="scada-header absolute top-0 left-0 right-0 bg-transparent border-none text-center z-20 justify-center">
+                    <span id="engineStat" class="bg-cyan-900/40 px-3 py-1 hud-text border border-[#00f3ff] shadow-[0_0_10px_rgba(0,243,255,0.4)] transition-all">STATUS: OPTIMAL</span>
+                </div>
+                
+                <!-- CANVAS 3D -->
+                <div id="canvas3d" class="absolute inset-0 cursor-crosshair z-10 w-full h-full"></div>
+                
+                <div class="absolute bottom-2 left-2 right-2 flex gap-2 z-30">
+                    <button onclick="overrideEngine('ESTOP')" class="estop-btn flex-1 py-2">E-STOP</button>
+                    <button onclick="overrideEngine('OVERCLOCK')" class="warn-btn flex-1 py-2">OVERCLOCK</button>
+                    <button onclick="overrideEngine('RESET')" class="hud-btn flex-1 py-2">RESET</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- KOLOM KANAN (25%) -->
+        <div class="w-[25%] flex flex-col gap-2 min-h-0 shrink-0">
+            <div class="flex h-[25%] gap-2 shrink-0">
+                <!-- CCTV FEED -->
+                <div class="scada-panel flex-1 min-w-0">
+                    <div class="scada-header"><span>CCTV</span><span class="text-red-500 animate-pulse text-[8px]">⏺</span></div>
+                    <div class="flex-1 relative overflow-hidden bg-black border border-cyan-900/50 m-1">
+                        <canvas id="cctvCanvas" class="absolute inset-0 w-full h-full opacity-60"></canvas>
+                        <div class="absolute inset-0 cctv-overlay"></div>
+                        <div class="absolute bottom-1 left-1 text-[7px] text-white/80 font-mono-data" id="cctvTime"></div>
+                        <div class="absolute top-1 left-1 text-[7px] text-white/80 font-mono-data">CAM-01</div>
+                    </div>
+                </div>
+
+                <!-- FITUR 20: RADAR SCANNER -->
+                <div class="scada-panel flex-1 min-w-0">
+                    <div class="scada-header"><span>RADAR</span></div>
+                    <div class="flex-1 relative overflow-hidden bg-black border border-cyan-900/50 m-1 flex justify-center items-center">
+                        <canvas id="radarCanvas" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OUTPUT GRAFIK -->
+            <div class="scada-panel shrink-0 h-[25%]">
+                <div class="scada-header"><span>OUTPUT ENERGI</span></div>
+                <div class="flex-1 p-1 relative min-h-0 w-full h-full"><canvas id="prodChart"></canvas></div>
+            </div>
+            
+            <!-- FITUR 21: CONSOLE TRACE LOG -->
+            <div class="scada-panel shrink-0 h-[15%]">
+                <div class="scada-header"><span>SYS TRACE</span></div>
+                <div id="sysTrace" class="flex-1 p-1 overflow-y-hidden bg-black/50 font-mono-data text-[7px] text-emerald-500 break-words leading-tight flex flex-col justify-end">
+                </div>
+            </div>
+
+            <!-- LOG TELEGRAM & EXPORT -->
+            <div class="scada-panel flex-1 min-h-0">
+                <div class="scada-header"><span>LAPORAN OPR</span></div>
+                <div class="flex-1 overflow-y-auto bg-transparent p-1">
+                    <table class="w-full text-[9px] text-left font-mono-data" id="reportTable">
+                        <thead class="text-cyan-700 border-b border-cyan-900/50 sticky top-0 bg-[#020617]/80 backdrop-blur">
+                            <tr><th>WAKTU</th><th>OPR</th><th>AKSI</th></tr>
+                        </thead>
+                        <tbody id="tblData" class="divide-y divide-cyan-900/30"></tbody>
+                    </table>
+                </div>
+                <div class="p-1 border-t border-cyan-900/50 flex flex-wrap gap-1 shrink-0">
+                    <button onclick="generateShiftReport()" class="hud-btn flex-1 text-[8px] !p-1">✨ AI</button>
+                    <button onclick="exportToPDF()" class="warn-btn flex-1 text-[8px] !p-1">🖨️ PDF</button>
+                    <button onclick="exportCSV()" class="hud-btn flex-1 text-[8px] !p-1 bg-emerald-900/30 !border-emerald-400 !text-emerald-400">📊 CSV</button>
+                </div>
+            </div>
+
+            <!-- BROADCAST MANAGER -->
+            <div class="scada-panel shrink-0">
+                <div class="scada-header"><span>TRANSMISI PESAN</span></div>
+                <div class="p-2 flex flex-col gap-2">
+                    <input type="text" id="broadcastMsg" class="ai-input font-mono-data text-[10px]" placeholder="Ketik pesan broadcast..." autocomplete="off">
+                    <button onclick="sendBroadcast()" class="warn-btn text-[10px] w-full">📡 BROADCAST</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEMUA JAVASCRIPT DIJADIKAN SATU BLOK AGAR TIDAK ADA DUPLIKASI -->
+    <script>
+        // ⚠️ API KEY OPENROUTER ⚠️
+        const openRouterApiKey = "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"; 
+
+        // ==========================================
+        // VARIABLES & STATE
+        // ==========================================
+        let voiceEnabled = false;
+        let autoPilotEnabled = false;
+        let xrayMode = false;
+        let isAudioReady = false;
+        
+        let synthClick, synthAlarm, synthSuccess, alarmInterval;
+        
+        let scene, camera, renderer, engineGroup, rotorGroup, particleMesh;
+        let rotSpeed = 0.05, targetRotSpeed = 0.05;
+        let isHalted = false;
+        let mouseX = 0, mouseY = 0;
+        let hudColor = 0x00f3ff;
+        
+        let pChart;
+        let tempChartData = [85, 86, 85, 87, 85, 86, 85, 86]; 
+        let radarAngle = 0;
+
+        const themes = [
+            { name: 'Cyan', hex: 0x00f3ff, css: '#00f3ff' },
+            { name: 'Emerald', hex: 0x10b981, css: '#10b981' },
+            { name: 'Amethyst', hex: 0xa855f7, css: '#a855f7' }
+        ];
+        let currentThemeIdx = 0;
+
+        // ==========================================
+        // UI & UTILITIES
+        // ==========================================
+        function toggleFullscreen() {
+            playClick();
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(e => console.log(e)); } 
+            else { if (document.exitFullscreen) document.exitFullscreen(); }
+        }
+
+        function toggleVoice() {
+            playClick();
+            voiceEnabled = !voiceEnabled;
+            document.getElementById('btnVoice').innerText = voiceEnabled ? '🔊 VOICE' : '🔈 VOICE';
+            document.getElementById('btnVoice').className = voiceEnabled ? 'hud-btn' : 'hud-btn opacity-50';
+            if(voiceEnabled) speak("Voice synthesis diaktifkan.");
+        }
+
+        function speak(text) {
+            if(!voiceEnabled) return;
+            const cleanText = text.replace(/[*#]/g, ''); 
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'id-ID'; utterance.rate = 1.1;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function toggleAutoPilot() {
+            playClick();
+            autoPilotEnabled = !autoPilotEnabled;
+            document.getElementById('btnAutoPilot').className = autoPilotEnabled ? 'hud-btn bg-emerald-900/50 text-emerald-400 border-emerald-400' : 'hud-btn opacity-50';
+            if(autoPilotEnabled) {
+                aiPrint('[SYS] AUTO-PILOT STABILIZER DIAKTIFKAN.', 'text-emerald-400');
+                speak("Auto pilot aktif.");
+            }
+        }
+
+        function toggleTheme() {
+            playClick();
+            currentThemeIdx = (currentThemeIdx + 1) % themes.length;
+            const t = themes[currentThemeIdx];
+            document.documentElement.style.setProperty('--hud-cyan', t.css);
+            hudColor = t.hex;
+            if(!isHalted && targetRotSpeed <= 0.05) setHUDColor(hudColor);
+            aiPrint(`[SYS] Tema: ${t.name}`, `text-[${t.css}]`);
+        }
+
+        function toggleXRay() {
+            playClick();
+            xrayMode = !xrayMode;
+            document.getElementById('btnXray').className = xrayMode ? 'hud-btn bg-cyan-900/50' : 'hud-btn opacity-50';
+            if(engineGroup) {
+                engineGroup.userData.lines.forEach(mat => { mat.opacity = xrayMode ? 0.2 : 0.6; });
+            }
+        }
+
+        function runDiagnostics() {
+            playClick();
+            aiPrint('[SYS] DIAGNOSTIK HARDWARE...', 'text-[#ffae00]');
+            let progress = 0; const id = 'diag-' + Date.now();
+            aiPrint(`<div id="${id}" class="hud-text">[..........] 0%</div>`, 'hud-text');
+            const interval = setInterval(() => {
+                progress += 10;
+                const el = document.getElementById(id);
+                if(el) el.innerText = `[${'█'.repeat(progress/10)}${'.'.repeat(10 - progress/10)}] ${progress}%`;
+                if(progress >= 100) {
+                    clearInterval(interval);
+                    aiPrint('[SYS] DIAGNOSTIK SELESAI. OK.', 'text-emerald-400');
+                    speak("Diagnostik selesai.");
+                }
+            }, 300);
+        }
+
+        function triggerLockdown() {
+            playClick(); playAlarm(true);
+            document.getElementById('lockdown-screen').style.display = 'flex';
+            speak("Peringatan kritis! Sistem dikunci.");
+        }
+
+        function unlockSystem() {
+            if(document.getElementById('pinLockdown').value === '1234') {
+                document.getElementById('lockdown-screen').style.display = 'none';
+                document.getElementById('pinLockdown').value = '';
+                stopAlarm();
+                speak("Akses diterima. Sistem dibuka.");
+            } else {
+                speak("Akses ditolak. Pin salah.");
+                document.getElementById('pinLockdown').value = '';
+            }
+        }
+
+        // ==========================================
+        // EXPORT FUNCTIONS (PDF & CSV)
+        // ==========================================
+        function exportCSV() {
+            playClick();
+            const temp = document.getElementById('uiTemp').innerText;
+            const rpm = document.getElementById('uiRpm').innerText;
+            const data = "Waktu,Suhu Inti,RPM Turbin\n" + `${new Date().toLocaleTimeString()},${temp},${rpm}`;
+            const blob = new Blob([data], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `Log_${Date.now()}.csv`);
+            a.click();
+        }
+
+        function exportToPDF() {
+            playClick();
+            aiPrint('[SYS] Menyiapkan Dokumen PDF...', 'hud-text');
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text("LAPORAN SHIFT SCADA ENTERPRISE", 14, 20);
+            doc.autoTable({ html: '#reportTable', startY: 30, theme: 'grid' });
+            doc.save(`Shift_${Date.now()}.pdf`);
+            aiPrint('[SYS] PDF Berhasil Diunduh.', 'text-emerald-400');
+        }
+
+        // ==========================================
+        // BOOT SCREEN ANIMATION & LOGIC
+        // ==========================================
+        const bootLines = [
+            "[OK] KERNEL INITIALIZED...",
+            "[OK] BYPASSING SECURITY PROTOCOLS...",
+            "[OK] ESTABLISHING WEBSOCKET...",
+            "[OK] OPENROUTER AI READY.",
+            "[OK] 3D ENGINE STANDBY.",
+            "AWAITING BIOMETRICS..."
+        ];
+        
+        let bootTerm = document.getElementById('boot-terminal');
+        let lineIdx = 0;
+        function typeBootLog() {
+            if(lineIdx < bootLines.length) {
+                let div = document.createElement('div');
+                div.innerText = bootLines[lineIdx];
+                bootTerm.appendChild(div);
+                lineIdx++;
+                setTimeout(typeBootLog, Math.random() * 200 + 50);
+            }
+        }
+        setTimeout(typeBootLog, 500);
+
+        // FUNGSI INI HANYA DIDEKLARASIKAN SATU KALI DI SINI
+        async function startSystem() {
+            try { await initAudio(); } catch(e) {}
+            
+            document.getElementById('boot-title').innerText = "ACCESS GRANTED";
+            document.getElementById('boot-title').className = "text-6xl font-bold tracking-[15px] text-emerald-400 mb-2 drop-shadow-[0_0_20px_#34d399]";
+            document.getElementById('boot-desc').innerText = "INITIALIZING CORE SYSTEMS...";
+            document.getElementById('boot-btn-container').style.opacity = '0';
+            document.getElementById('boot-btn-container').style.pointerEvents = 'none';
+            document.getElementById('boot-hint').style.opacity = '0';
+            
+            if(isAudioReady && synthSuccess) synthSuccess.triggerAttackRelease(["C5", "E5", "G5", "C6"], "2n", Tone.now());
+            
+            setTimeout(() => {
+                document.getElementById('boot-screen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('boot-screen').style.display = 'none';
+                    document.getElementById('mainApp').style.opacity = '1';
+                  
+                    // Initialize all visual engines
+                    try { init3DEngine(); } catch(e) { console.error("3D Error", e); }
+                    try { initChart(); } catch(e) { console.error("Chart Error", e); }
+                    try { initCCTV(); initRadar(); } catch(e) { console.error("Canvas Error", e); }
+                    try { startTelemetry(); setInterval(addTraceLog, 800); } catch(e) {}
+                    
+                    // Force resize for 3D container
+                    setTimeout(resize3D, 500); 
+                    window.addEventListener('resize', resize3D);
+                }, 800);
+            }, 1500);
+        }
+
+        // ==========================================
+        // AUDIO ENGINE
+        // ==========================================
+        async function initAudio() {
+            if(isAudioReady) return;
+            await Tone.start();
+            synthClick = new Tone.PolySynth(Tone.Synth).toDestination();
+            synthClick.set({ envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }, volume: -15 });
+            synthAlarm = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.8 } }).toDestination();
+            synthAlarm.volume.value = -10;
+            synthSuccess = new Tone.PolySynth(Tone.Synth).toDestination();
+            synthSuccess.volume.value = -10;
+            isAudioReady = true;
+        }
+
+        function playClick() { if(isAudioReady && synthClick) synthClick.triggerAttackRelease("C6", "32n", Tone.now()); }
+        function playAlarm(isWarn=false) {
+            if(!isAudioReady || alarmInterval || !synthAlarm) return;
+            let note = true;
+            alarmInterval = setInterval(() => {
+                synthAlarm.triggerAttackRelease(isWarn ? (note ? "E5" : "C5") : (note ? "C5" : "G4"), "16n", Tone.now());
+                note = !note;
+            }, isWarn ? 150 : 300);
+        }
+        function stopAlarm() { if(alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; } }
+
+        // ==========================================
+        // SOCKET & COMMUNICATIONS
+        // ==========================================
+        try {
+            socket = io();
+            socket.on('connect', () => {
+                document.getElementById('connStatus').innerText = "UPLINK AKTIF";
+                document.getElementById('connStatus').className = "text-[8px] font-mono-data text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded border border-emerald-800";
+            });
+            socket.on('bot_activity', (data) => {
+                addTableRow(data.user, `${data.action}`, 'hud-text');
+                playClick();
+                if(voiceEnabled && data.action === '🚨 LAPORAN DARURAT') speak("Peringatan, laporan darurat masuk.");
+            });
+        } catch (e) {}
+
+        function sendBroadcast() {
+            const msgInput = document.getElementById('broadcastMsg');
+            const msg = msgInput.value.trim();
+            if(!msg) return;
+            
+            if(socket) {
+                socket.emit('send_broadcast', { message: msg });
+                aiPrint(`[MANAJER] Pesan Broadcast Terkirim: "${msg}"`, 'text-[#ffae00]');
+                addTableRow('MANAJER', `BROADCAST: ${msg}`, 'text-[#ffae00]');
+            } else {
+                aiPrint('[SYS] Error: Backend terputus.', 'text-[#ff003c]');
+            }
+            msgInput.value = '';
+            playClick();
+        }
+
+        function addTableRow(user, action, colorCls) {
+            const row = `<tr>
+                <td class="py-1 text-cyan-600 border-t border-cyan-900/30">${new Date().toLocaleTimeString()}</td>
+                <td class="py-1 text-cyan-100 border-t border-cyan-900/30 font-bold">${user}</td>
+                <td class="py-1 ${colorCls} border-t border-cyan-900/30 truncate max-w-[100px]">${action}</td>
+            </tr>`;
+            document.getElementById('tblData').insertAdjacentHTML('afterbegin', row);
+        }
+
+        function addTraceLog() {
+            const trace = document.getElementById('sysTrace');
+            const msgs = ['Checking nodes...', 'Bypassing proxy...', '0x00'+Math.floor(Math.random()*9999)+' memory alloc', 'Link established', 'Ping sent'];
+            const div = document.createElement('div');
+            div.innerText = `> ${msgs[Math.floor(Math.random()*msgs.length)]}`;
+            trace.appendChild(div);
+            if(trace.children.length > 8) trace.removeChild(trace.firstChild);
+        }
+
+        // ==========================================
+        // AI OPENROUTER ENGINE
+        // ==========================================
+        async function callOpenRouterAI(userPrompt, systemContext) {
+            if (!openRouterApiKey || openRouterApiKey.includes("xxxxxxxx")) return "[GAGAL] API Key OpenRouter belum diisi.";
+            const url = "https://openrouter.ai/api/v1/chat/completions";
+            const payload = { model: "google/gemini-2.5-flash", max_tokens: 300, messages: [ { role: "system", content: systemContext }, { role: "user", content: userPrompt } ] };
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openRouterApiKey}` },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                return data.choices[0].message.content || "Error memformat struktur.";
+            } catch (error) { return `[ERROR AI] ${error.message}.`; }
+        }
+
+        document.getElementById('aiInput').addEventListener('keypress', async function(e) {
+            if (e.key === 'Enter' && this.value.trim() !== '') {
+                const cmd = this.value;
+                aiPrint(`> ${cmd}`, 'text-white');
+                this.value = ''; playClick();
+                if (cmd.toUpperCase() === 'CLEAR') return document.getElementById('aiLog').innerHTML = '';
+
+                const loadId = 'load-' + Date.now();
+                aiPrint(`<span id="${loadId}" class="animate-pulse">NEXUS menganalisis...</span>`, 'text-cyan-700');
+
+                const temp = document.getElementById('uiTemp').innerText;
+                const sysContext = `NEXUS, SCADA AI. Jawab max 2 kalimat, ringkas. Data: ${temp}. Dilarang format markdown.`;
+                const aiResponse = await callOpenRouterAI(cmd, sysContext);
+                
+                document.getElementById(loadId)?.remove();
+                aiPrint(`NEXUS: ${aiResponse.replace(/\n/g, '<br>')}`, 'hud-text');
+                speak(aiResponse);
+            }
+        });
+
+        async function generateShiftReport() {
+            playClick();
+            const loadId = 'load-report-' + Date.now();
+            aiPrint(`<span id="${loadId}" class="animate-pulse">Membuat Rangkuman...</span>`, 'text-[#ffae00]');
+            const temp = document.getElementById('uiTemp').innerText;
+            const aiResponse = await callOpenRouterAI("Buatkan rangkuman operasional.", `NEXUS. Laporan shift kaku, 2 kalimat, tanpa markdown. Suhu ${temp}`);
+            document.getElementById(loadId)?.remove();
+            aiPrint(`[RANGKUMAN]<br>${aiResponse.replace(/\n/g, '<br>')}`, 'text-[#ffae00]');
+            speak("Rangkuman selesai dibuat.");
+        }
+
+        function aiPrint(text, colorCls) {
+            const log = document.getElementById('aiLog');
+            log.innerHTML += `<div class="${colorCls}">${text}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // ==========================================
+        // CANVAS: CCTV & RADAR
+        // ==========================================
+        function initCCTV() {
+            const canvas = document.getElementById('cctvCanvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            function drawNoise() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+                const imgData = ctx.createImageData(canvas.width, canvas.height);
+                for(let i = 0; i < imgData.data.length; i += 4) {
+                    const c = Math.random() * 255;
+                    imgData.data[i] = c; imgData.data[i+1] = c; imgData.data[i+2] = c; imgData.data[i+3] = 255;
+                }
+                ctx.putImageData(imgData, 0, 0);
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+                ctx.fillRect(0, (Date.now() / 15) % canvas.height, canvas.width, 10);
+                setTimeout(drawNoise, 50); 
+            }
+            drawNoise();
+        }
+
+        function initRadar() {
+            const canvas = document.getElementById('radarCanvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            function draw() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+                const w = canvas.width, h = canvas.height, cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 5;
+                
+                ctx.fillStyle = 'rgba(0, 5, 15, 0.1)';
+                ctx.fillRect(0,0,w,h);
+                
+                ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx, cy, r*0.66, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx, cy, r*0.33, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx, cy-r); ctx.lineTo(cx, cy+r); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx-r, cy); ctx.lineTo(cx+r, cy); ctx.stroke();
+
+                radarAngle += 0.05;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.cos(radarAngle)*r, cy + Math.sin(radarAngle)*r);
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                if(Math.random() > 0.98) {
+                    ctx.fillStyle = '#ff003c';
+                    ctx.beginPath();
+                    ctx.arc(cx + (Math.random()-0.5)*r, cy + (Math.random()-0.5)*r, 2, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        // ==========================================
+        // 3D ENGINE (THREE.JS)
+        // ==========================================
+        function createBlueprintEdges(geometry, colorHex) {
+            const edges = new THREE.EdgesGeometry(geometry);
+            const material = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+            return new THREE.LineSegments(edges, material);
+        }
+
+        function init3DEngine() {
+            const container = document.getElementById('canvas-container'); 
+            if(!container) return;
+            scene = new THREE.Scene();
+            
+            const w = container.clientWidth || 500;
+            const h = container.clientHeight || 400;
+
+            camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
+            camera.position.set(22, 8, 25);
+            camera.lookAt(0, 0, 0); 
+            
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas3d').appendChild(renderer.domElement);
+
+            engineGroup = new THREE.Group();
+            rotorGroup = new THREE.Group();
+            engineGroup.userData.lines = []; 
+
+            const shaft = createBlueprintEdges(new THREE.CylinderGeometry(1.5, 1.5, 24, 16), hudColor);
+            shaft.rotation.z = Math.PI / 2;
+            rotorGroup.add(shaft);
+            engineGroup.userData.lines.push(shaft.material);
+
+            for(let i=0; i<5; i++) {
+                const posX = -9 + (i * 4.5);
+                const radius = 7 - (i * 0.5); 
+                const ring = createBlueprintEdges(new THREE.CylinderGeometry(radius, radius, 1, 32), hudColor);
+                ring.rotation.z = Math.PI / 2; ring.position.x = posX;
+                rotorGroup.add(ring);
+                engineGroup.userData.lines.push(ring.material);
+                for(let j=0; j<16; j++) {
+                    const blade = createBlueprintEdges(new THREE.BoxGeometry(0.5, radius, 1.5), hudColor);
+                    const angle = (j / 16) * Math.PI * 2;
+                    blade.position.set(posX, Math.cos(angle) * (radius/2), Math.sin(angle) * (radius/2));
+                    blade.rotation.x = -angle; blade.rotation.y = Math.PI / 4; 
+                    rotorGroup.add(blade);
+                    engineGroup.userData.lines.push(blade.material);
+                }
+            }
+
+            const casing = createBlueprintEdges(new THREE.CylinderGeometry(8.5, 8.5, 26, 32, 1, true, 0, Math.PI), hudColor);
+            casing.rotation.z = Math.PI / 2; casing.rotation.x = -Math.PI / 2;
+            engineGroup.add(casing);
+            engineGroup.userData.lines.push(casing.material);
+
+            const gridHelper = new THREE.GridHelper(40, 20, hudColor, hudColor);
+            gridHelper.material.transparent = true; gridHelper.material.opacity = 0.1; gridHelper.position.y = -10;
+            engineGroup.add(gridHelper);
+            engineGroup.userData.lines.push(gridHelper.material);
+
+            const particleGeo = new THREE.BufferGeometry();
+            const pArray = new Float32Array(500 * 3);
+            for(let i=0; i<1500; i++) { pArray[i] = (Math.random() - 0.5) * 35; }
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(pArray, 3));
+            const particleMat = new THREE.PointsMaterial({ size: 0.15, color: hudColor, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+            particleMesh = new THREE.Points(particleGeo, particleMat);
+            engineGroup.add(particleMesh);
+            engineGroup.userData.particleMat = particleMat;
+
+            engineGroup.add(rotorGroup);
+            scene.add(engineGroup);
+            
+            container.addEventListener('mousemove', (e) => {
+                const rect = container.getBoundingClientRect();
+                mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            });
+            container.addEventListener('mouseleave', () => { mouseX = 0; mouseY = 0; });
+            animate3D();
+        }
+
+        function resize3D() {
+            if(!camera || !renderer) return;
+            const container = document.getElementById('canvas-container'); 
+            if(!container || container.clientWidth === 0) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            if(!scene) return;
+            rotSpeed += (targetRotSpeed - rotSpeed) * 0.05;
+            if(!isHalted) { rotorGroup.rotation.x -= rotSpeed; particleMesh.rotation.x -= (rotSpeed * 0.3); }
+            particleMesh.rotation.y += 0.001;
+            engineGroup.rotation.x += 0.05 * ((mouseY * 0.3) - engineGroup.rotation.x);
+            engineGroup.rotation.y += 0.05 * ((mouseX * 0.5) - engineGroup.rotation.y);
+            engineGroup.position.y = (targetRotSpeed > 0.1 && !isHalted) ? (Math.random() - 0.5) * 0.2 : 0;
+            renderer.render(scene, camera);
+        }
+
+        function setHUDColor(hex) {
+            engineGroup.userData.lines.forEach(mat => mat.color.setHex(hex));
+            engineGroup.userData.particleMat.color.setHex(hex);
+        }
+
+        function overrideEngine(cmd) {
+            playClick();
+            const stat = document.getElementById('engineStat');
+            if(cmd === 'ESTOP') {
+                isHalted = true; targetRotSpeed = 0; stopAlarm(); playAlarm(false); setHUDColor(0xff003c); 
+                stat.innerText = 'STATUS: BERHENTI KRITIS'; stat.className = 'bg-red-900/40 px-3 py-1 text-[#ff003c] border border-[#ff003c] shadow-[0_0_15px_rgba(255,0,60,0.6)] animate-pulse';
+                speak("Mesin dihentikan.");
+            } else if (cmd === 'OVERCLOCK') {
+                isHalted = false; targetRotSpeed = 0.3; stopAlarm(); playAlarm(true); setHUDColor(0xffae00); 
+                stat.innerText = 'STATUS: OVERCLOCK 300%'; stat.className = 'bg-orange-900/40 px-3 py-1 text-[#ffae00] border border-[#ffae00] shadow-[0_0_15px_rgba(255,174,0,0.6)]';
+                speak("Overclock aktif.");
+            } else {
+                isHalted = false; targetRotSpeed = 0.05; stopAlarm(); setHUDColor(hudColor); 
+                stat.innerText = 'STATUS: OPTIMAL'; stat.className = 'bg-cyan-900/40 px-3 py-1 hud-text border border-cyan-400 shadow-[0_0_10px_rgba(0,243,255,0.4)]';
+                speak("Sistem normal.");
+            }
+        }
+
+        // ==========================================
+        // CHART & TELEMETRY
+        // ==========================================
+        function initChart() {
+            Chart.defaults.color = '#00f3ff';
+            Chart.defaults.font.family = "'JetBrains Mono', monospace";
+            const ctx = document.getElementById('prodChart').getContext('2d');
+            pChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: ['T-8', 'T-7', 'T-6', 'T-5', 'T-4', 'T-3', 'T-2', 'T-1'], 
+                    datasets: [{ data: tempChartData, borderColor: '#00f3ff', borderWidth: 2, backgroundColor: 'rgba(0, 243, 255, 0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false} }, scales: { y: { min: 0, max: 150, border:{display:false} }, x: { border:{display:false} } } }
+            });
+        }
+
+        function startTelemetry() {
+            let temp = 85.0, rpm = 2450;
+            setInterval(() => {
+                setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('id-ID'); }, 1000);
+                document.getElementById('netPing').innerText = `PING: ${Math.floor(Math.random() * 30 + 10)}ms`;
+                const cpu = Math.floor(Math.random() * 20 + 10);
+                document.getElementById('uiCpu').innerText = `${cpu}%`;
+                document.getElementById('cpuBar').style.width = `${cpu}%`;
+                document.getElementById('cctvTime').innerText = new Date().toLocaleTimeString('id-ID') + ' | REC';
+
+                if(isHalted) { temp -= 0.5; if(temp<30) temp=30; rpm *= 0.9; }
+                else if (targetRotSpeed > 0.1) { temp += 1; if(temp>120) temp=120; rpm += 100; if(rpm>8000) rpm=8000+(Math.random()*100); }
+                else { temp += (85-temp)*0.1 + (Math.random()-0.5); rpm += (2450-rpm)*0.1 + (Math.random()-0.5)*10; }
+
+                if (autoPilotEnabled && temp > 110 && targetRotSpeed > 0.1) {
+                    overrideEngine('RESET');
+                    aiPrint('[AUTO-PILOT] Suhu kritis! Menormalkan RPM.', 'text-emerald-400');
+                    speak("Auto pilot menormalkan mesin.");
+                }
+
+                document.getElementById('uiTemp').innerText = temp.toFixed(1) + '°C';
+                document.getElementById('uiRpm').innerText = Math.round(rpm);
+                document.getElementById('tempBar').style.width = `${Math.min(100, (temp/120)*100)}%`;
+                document.getElementById('rpmBar').style.width = `${Math.min(100, (rpm/8500)*100)}%`;
+                
+                if(pChart) {
+                    pChart.data.datasets[0].data.push(temp);
+                    pChart.data.datasets[0].data.shift(); 
+                    if(temp > 105) { pChart.data.datasets[0].borderColor = '#ff003c'; pChart.data.datasets[0].backgroundColor = 'rgba(255,0,60,0.2)'; }
+                    else if (targetRotSpeed > 0.1) { pChart.data.datasets[0].borderColor = '#ffae00'; pChart.data.datasets[0].backgroundColor = 'rgba(255,174,0,0.2)'; }
+                    else { pChart.data.datasets[0].borderColor = document.documentElement.style.getPropertyValue('--hud-cyan') || '#00f3ff'; pChart.data.datasets[0].backgroundColor = 'rgba(0,243,255,0.1)'; }
+                    pChart.update();
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
