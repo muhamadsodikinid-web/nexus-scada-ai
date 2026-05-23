@@ -223,10 +223,10 @@
 
             <!-- INTERACTIVE AI TERMINAL -->
             <div class="scada-panel flex-1 min-h-0">
-                <div class="scada-header"><span>NEXUS AI</span><span class="text-[8px] text-emerald-400 animate-pulse">✨ OR-LLM</span></div>
+                <div class="scada-header"><span>NEXUS AI</span><span class="text-[8px] text-emerald-400 animate-pulse">✨ SERVERLESS LOGIC</span></div>
                 <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-1 font-mono-data text-[9px]" id="aiLog">
-                    <div class="text-cyan-700">Terhubung ke API... OK</div>
-                    <div class="hud-text">> SISTEM SIAP. KETIK PERTANYAAN...</div>
+                    <div class="text-cyan-700">Offline Logic Engine Dimuat... OK</div>
+                    <div class="hud-text">> SISTEM SIAP. KETIK PERTANYAAN (Coba: Suhu, RPM, Laporan)...</div>
                 </div>
                 <div class="p-1 border-t border-cyan-900/50 flex shrink-0">
                     <span class="text-cyan-600 mr-1">></span>
@@ -321,9 +321,6 @@
 
     <!-- SEMUA JAVASCRIPT DIJADIKAN SATU BLOK AGAR TIDAK ADA DUPLIKASI -->
     <script>
-        // ⚠️ API KEY OPENROUTER ⚠️
-        const openRouterApiKey = "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"; 
-
         // ==========================================
         // VARIABLES & STATE
         // ==========================================
@@ -474,7 +471,7 @@
             "[OK] KERNEL INITIALIZED...",
             "[OK] BYPASSING SECURITY PROTOCOLS...",
             "[OK] ESTABLISHING WEBSOCKET...",
-            "[OK] OPENROUTER AI READY.",
+            "[OK] OFFLINE LOGIC ENGINE READY.",
             "[OK] 3D ENGINE STANDBY.",
             "AWAITING BIOMETRICS..."
         ];
@@ -554,7 +551,7 @@
         // SOCKET & COMMUNICATIONS
         // ==========================================
         try {
-            socket = io('https://nexus-scada-ai-production.up.railway.app');
+            socket = io();
             socket.on('connect', () => {
                 document.getElementById('connStatus').innerText = "UPLINK AKTIF";
                 document.getElementById('connStatus').className = "text-[8px] font-mono-data text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded border border-emerald-800";
@@ -601,22 +598,52 @@
         }
 
         // ==========================================
-        // AI OPENROUTER ENGINE
+        // NEXUS OFFLINE LOGIC ENGINE (NO API KEY)
         // ==========================================
-        async function callOpenRouterAI(userPrompt, systemContext) {
-            if (!openRouterApiKey || openRouterApiKey.includes("xxxxxxxx")) return "[GAGAL] API Key OpenRouter belum diisi.";
-            const url = "https://openrouter.ai/api/v1/chat/completions";
-            const payload = { model: "google/gemini-2.5-flash", max_tokens: 300, messages: [ { role: "system", content: systemContext }, { role: "user", content: userPrompt } ] };
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openRouterApiKey}` },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                return data.choices[0].message.content || "Error memformat struktur.";
-            } catch (error) { return `[ERROR AI] ${error.message}.`; }
+        async function callNexusAI(prompt) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const text = prompt.toLowerCase();
+                    const temp = document.getElementById('uiTemp').innerText;
+                    const rpm = document.getElementById('uiRpm').innerText;
+                    const status = document.getElementById('engineStat').innerText;
+
+                    let response = "Perintah tidak dikenali dalam protokol NEXUS.";
+
+                    if (text.includes('suhu') || text.includes('panas') || text.includes('temperatur')) {
+                        response = `Suhu inti turbin saat ini terpantau di angka **${temp}**. Sistem pendingin sekunder dalam kondisi siaga.`;
+                    } 
+                    else if (text.includes('rpm') || text.includes('putaran') || text.includes('turbin')) {
+                        response = `Putaran turbin berada di tingkat **${rpm}**. Masih dalam batas aman operasional.`;
+                    } 
+                    else if (text.includes('status') || text.includes('laporan') || text.includes('kondisi')) {
+                        response = `Laporan Sistem: Status saat ini **${status}**. Suhu: **${temp}**, Putaran: **${rpm}**. Tidak terdeteksi anomali pada sektor 7.`;
+                    } 
+                    else if (text.includes('halo') || text.includes('hai') || text.includes('nexus') || text.includes('pagi') || text.includes('siang') || text.includes('malam')) {
+                        response = `NEXUS Core System Online. Menunggu arahan komandan.`;
+                    } 
+                    else if (text.includes('berhenti') || text.includes('stop') || text.includes('matikan') || text.includes('estop')) {
+                        response = `⚠️ Peringatan: Akses ditolak. Gunakan tombol **E-STOP** fisik pada panel utama untuk menghentikan mesin demi keamanan.`;
+                    } 
+                    else if (text.includes('bantuan') || text.includes('help') || text.includes('fitur')) {
+                        response = `Saya adalah AI pemantau lokal. Tanyakan pada saya tentang "Suhu", "RPM", "Status Sistem" atau "Buat Laporan".`;
+                    } 
+                    else if (text.includes('rangkuman') || text.includes('operasional') || text.includes('buat laporan')) {
+                        response = `Status mesin **${status}**. Suhu: **${temp}**, Putaran: **${rpm}**. Seluruh sistem beroperasi dalam parameter normal.`;
+                    }
+                    else {
+                        const randomResponses = [
+                            "Menganalisis matriks data... Tidak ada tindakan darurat yang diperlukan.",
+                            "Data telemetri stabil. Melanjutkan pemantauan sektor belakang.",
+                            "Perintah diterima. Menjalankan diagnostik latar belakang...",
+                            "Firewall internal aktif. Akses eksternal diblokir sepenuhnya.",
+                            "Koneksi aman. Sinkronisasi data ke satelit lokal selesai."
+                        ];
+                        response = randomResponses[Math.floor(Math.random() * randomResponses.length)];
+                    }
+                    resolve(response);
+                }, 800); 
+            });
         }
 
         document.getElementById('aiInput').addEventListener('keypress', async function(e) {
@@ -629,13 +656,16 @@
                 const loadId = 'load-' + Date.now();
                 aiPrint(`<span id="${loadId}" class="animate-pulse">NEXUS menganalisis...</span>`, 'text-cyan-700');
 
-                const temp = document.getElementById('uiTemp').innerText;
-                const sysContext = `NEXUS, SCADA AI. Jawab max 2 kalimat, ringkas. Data: ${temp}. Dilarang format markdown.`;
-                const aiResponse = await callOpenRouterAI(cmd, sysContext);
+                // Memanggil Offline Engine
+                const aiResponse = await callNexusAI(cmd);
                 
                 document.getElementById(loadId)?.remove();
-                aiPrint(`NEXUS: ${aiResponse.replace(/\n/g, '<br>')}`, 'hud-text');
-                speak(aiResponse);
+                
+                // Ubah bintang-bintang (**) jadi huruf Tebal
+                let cleanResponse = aiResponse.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>');
+                
+                aiPrint(`NEXUS: ${cleanResponse.replace(/\n/g, '<br>')}`, 'hud-text');
+                speak(cleanResponse.replace(/(<([^>]+)>)/gi, "")); // Speak plain text only
             }
         });
 
@@ -643,10 +673,14 @@
             playClick();
             const loadId = 'load-report-' + Date.now();
             aiPrint(`<span id="${loadId}" class="animate-pulse">Membuat Rangkuman...</span>`, 'text-[#ffae00]');
-            const temp = document.getElementById('uiTemp').innerText;
-            const aiResponse = await callOpenRouterAI("Buatkan rangkuman operasional.", `NEXUS. Laporan shift kaku, 2 kalimat, tanpa markdown. Suhu ${temp}`);
+            
+            // Meminta rangkuman dari Offline Engine
+            const aiResponse = await callNexusAI("rangkuman operasional");
+            
             document.getElementById(loadId)?.remove();
-            aiPrint(`[RANGKUMAN]<br>${aiResponse.replace(/\n/g, '<br>')}`, 'text-[#ffae00]');
+            
+            let cleanResponse = aiResponse.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>');
+            aiPrint(`[RANGKUMAN]<br>${cleanResponse.replace(/\n/g, '<br>')}`, 'text-[#ffae00]');
             speak("Rangkuman selesai dibuat.");
         }
 
