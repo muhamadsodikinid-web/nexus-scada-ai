@@ -152,6 +152,34 @@
         <button onclick="unlockSystem()" class="estop-btn text-lg px-8 py-2">UNLOCK</button>
     </div>
 
+    <!-- ABOUT MODAL (NEW) -->
+    <div id="about-modal" class="fixed inset-0 z-[9999] hidden flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300 opacity-0">
+        <div class="scada-panel w-[400px] max-w-[90%] border-[#a855f7] shadow-[0_0_30px_rgba(168,85,247,0.3)]">
+            <div class="scada-header border-b border-[#a855f7] !bg-purple-900/30 !text-[#a855f7]">
+                <span>IDENTITAS KREATOR SISTEM</span>
+                <button onclick="closeAbout()" class="text-white hover:text-red-500 font-bold">✖</button>
+            </div>
+            <div class="p-6 flex flex-col items-center gap-4 text-center">
+                <div class="w-24 h-24 rounded-full border-2 border-[#a855f7] p-1 shadow-[0_0_15px_rgba(168,85,247,0.5)] overflow-hidden bg-purple-900/20 flex items-center justify-center">
+                    <span class="text-4xl">👨‍💻</span>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-white tracking-widest drop-shadow-[0_0_5px_rgba(168,85,247,0.8)]">MUHAMAD SODIKIN</h2>
+                    <p class="text-[#a855f7] font-mono-data text-xs mt-1">LEAD FULLSTACK SCADA ENGINEER</p>
+                    <p class="text-gray-400 text-xs mt-2 border-t border-purple-900/50 pt-2">📍 Cikarang Pusat, Bekasi, Jawa Barat</p>
+                </div>
+                
+                <div class="w-full flex flex-col gap-2 mt-2 font-mono-data text-xs">
+                    <a href="https://www.linkedin.com/in/muhamad-sodikin-122886407/" target="_blank" class="bg-blue-900/30 border border-blue-500 text-blue-400 py-2 hover:bg-blue-600 hover:text-white transition-all rounded">🔗 LINKEDIN PROFILE</a>
+                    <a href="https://www.instagram.com/guaaqinz?igsh=MTRyN2hjdW9kMXZrcw==" target="_blank" class="bg-pink-900/30 border border-pink-500 text-pink-400 py-2 hover:bg-pink-600 hover:text-white transition-all rounded">📸 INSTAGRAM: @guaaqinz</a>
+                    <a href="https://vm.tiktok.com/ZS9YCCqugw8AV-JS3qL/" target="_blank" class="bg-gray-900/50 border border-white text-white py-2 hover:bg-white hover:text-black transition-all rounded">🎵 TIKTOK PROFILE</a>
+                    <a href="https://mobile.capcutshare.com/sv2/ZSx59TYD2/" target="_blank" class="bg-gray-900/30 border border-gray-400 text-gray-300 py-2 hover:bg-gray-700 hover:text-white transition-all rounded">✂️ CAPCUT TEMPLATES</a>
+                </div>
+            </div>
+            <div class="scanline" style="box-shadow: 0 0 10px #a855f7; background: rgba(168,85,247,0.4);"></div>
+        </div>
+    </div>
+
     <!-- GLOBAL HEADER -->
     <header class="flex justify-between items-center px-2 py-1 border-b border-cyan-900/50 shrink-0">
         <div class="flex items-center gap-3">
@@ -166,6 +194,8 @@
             <button onclick="toggleVoice()" id="btnVoice" class="hud-btn opacity-50">🔈 VOICE</button>
             <button onclick="toggleAutoPilot()" id="btnAutoPilot" class="hud-btn opacity-50">🤖 AUTO</button>
             <button onclick="toggleTheme()" class="hud-btn">🎨 THEME</button>
+            <!-- TOMBOL ABOUT DEV BARU -->
+            <button onclick="openAbout()" class="hud-btn !border-[#a855f7] !text-[#a855f7] bg-purple-900/20 hover:!bg-[#a855f7] hover:!text-black">👨‍💻 DEV INFO</button>
             <button onclick="triggerLockdown()" class="estop-btn">🚨 LOCKDOWN</button>
             <div class="text-right ml-2 border-l border-cyan-900/50 pl-2">
                 <div class="text-cyan-700 leading-none">SYS_TIME</div>
@@ -221,7 +251,7 @@
                 </div>
             </div>
 
-            <!-- INTERACTIVE AI TERMINAL -->
+            <!-- INTERACTIVE AI TERMINAL (OFFLINE LOGIC) -->
             <div class="scada-panel flex-1 min-h-0">
                 <div class="scada-header"><span>NEXUS AI</span><span class="text-[8px] text-emerald-400 animate-pulse">✨ SERVERLESS LOGIC</span></div>
                 <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-1 font-mono-data text-[9px]" id="aiLog">
@@ -319,7 +349,7 @@
         </div>
     </div>
 
-    <!-- SEMUA JAVASCRIPT DIJADIKAN SATU BLOK AGAR TIDAK ADA DUPLIKASI -->
+    <!-- SEMUA JAVASCRIPT -->
     <script>
         // ==========================================
         // VARIABLES & STATE
@@ -347,6 +377,25 @@
             { name: 'Amethyst', hex: 0xa855f7, css: '#a855f7' }
         ];
         let currentThemeIdx = 0;
+
+        // ==========================================
+        // UI MODAL ABOUT DEVELOPER
+        // ==========================================
+        function openAbout() {
+            playClick();
+            const modal = document.getElementById('about-modal');
+            modal.classList.remove('hidden');
+            // Sedikit delay biar efek transisinya mulus
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+            aiPrint('[SYS] MEMBUKA PROFIL DEVELOPER UTAMA...', 'text-[#a855f7]');
+        }
+
+        function closeAbout() {
+            playClick();
+            const modal = document.getElementById('about-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
 
         // ==========================================
         // UI & UTILITIES
@@ -489,7 +538,6 @@
         }
         setTimeout(typeBootLog, 500);
 
-        // FUNGSI INI HANYA DIDEKLARASIKAN SATU KALI DI SINI
         async function startSystem() {
             try { await initAudio(); } catch(e) {}
             
@@ -508,13 +556,11 @@
                     document.getElementById('boot-screen').style.display = 'none';
                     document.getElementById('mainApp').style.opacity = '1';
                   
-                    // Initialize all visual engines
                     try { init3DEngine(); } catch(e) { console.error("3D Error", e); }
                     try { initChart(); } catch(e) { console.error("Chart Error", e); }
                     try { initCCTV(); initRadar(); } catch(e) { console.error("Canvas Error", e); }
                     try { startTelemetry(); setInterval(addTraceLog, 800); } catch(e) {}
                     
-                    // Force resize for 3D container
                     setTimeout(resize3D, 500); 
                     window.addEventListener('resize', resize3D);
                 }, 800);
@@ -559,7 +605,7 @@
             socket.on('bot_activity', (data) => {
                 addTableRow(data.user, `${data.action}`, 'hud-text');
                 playClick();
-                if(voiceEnabled && data.action === '🚨 LAPORAN DARURAT') speak("Peringatan, laporan darurat masuk.");
+                if(voiceEnabled && data.action === '🚨 LAPORAN DARURAT') speak("Peringatan, laporan darurat masuk dari " + data.user);
             });
         } catch (e) {}
 
@@ -661,11 +707,9 @@
                 
                 document.getElementById(loadId)?.remove();
                 
-                // Ubah bintang-bintang (**) jadi huruf Tebal
                 let cleanResponse = aiResponse.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>');
-                
                 aiPrint(`NEXUS: ${cleanResponse.replace(/\n/g, '<br>')}`, 'hud-text');
-                speak(cleanResponse.replace(/(<([^>]+)>)/gi, "")); // Speak plain text only
+                speak(cleanResponse.replace(/(<([^>]+)>)/gi, "")); 
             }
         });
 
@@ -674,9 +718,7 @@
             const loadId = 'load-report-' + Date.now();
             aiPrint(`<span id="${loadId}" class="animate-pulse">Membuat Rangkuman...</span>`, 'text-[#ffae00]');
             
-            // Meminta rangkuman dari Offline Engine
             const aiResponse = await callNexusAI("rangkuman operasional");
-            
             document.getElementById(loadId)?.remove();
             
             let cleanResponse = aiResponse.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>');
