@@ -551,7 +551,7 @@
         // SOCKET & COMMUNICATIONS
         // ==========================================
         try {
-            socket = io();
+            socket = io('https://nexus-scada-ai-production.up.railway.app');
             socket.on('connect', () => {
                 document.getElementById('connStatus').innerText = "UPLINK AKTIF";
                 document.getElementById('connStatus').className = "text-[8px] font-mono-data text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded border border-emerald-800";
